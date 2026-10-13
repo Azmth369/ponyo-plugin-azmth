@@ -1,5 +1,4 @@
 import express from 'express';
-import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -40,95 +39,39 @@ async function ponyoGet(path, params = {}) {
 }
 
 const tools = [
-  {
-    name: 'get_clan_members',
-    description: 'Fetch the latest live roster of members in the configured Ponyo clan. Supports optional name search and result limit.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        search: { type: 'string', description: 'Optional substring of player name to search for.' },
-        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of members to return. Defaults to 100.' }
-      },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'get_clan_summary',
-    description: 'Get the current configured clan overview and summary metrics from Ponyo.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
-  },
-  {
-    name: 'get_current_war',
-    description: 'Get the latest current clan war status from the live Clash of Clans API via Ponyo.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
-  },
-  {
-    name: 'get_clan_activity',
-    description: 'Get observed member activity changes within the requested number of hours. Data is limited by stored snapshot coverage.',
-    inputSchema: {
-      type: 'object',
-      properties: { hours: { type: 'integer', minimum: 1, maximum: 168, description: 'Lookback window in hours; defaults to 24.' } },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'get_capital_contribution',
-    description: 'Get a player’s lifetime Clan Capital contribution total. This is not raid-weekend loot. Provide a player name or player tag.',
-    inputSchema: {
-      type: 'object',
-      properties: { player: { type: 'string', minLength: 1, maxLength: 80, description: 'Player name or tag, such as #ABC123.' } },
-      required: ['player'],
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'get_capital_contribution_activity',
-    description: 'Compare stored lifetime Clan Capital contribution snapshots around the latest stored raid end. Coverage may be incomplete; increases are not raid-weekend loot.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
-  },
-  {
-    name: 'get_war_history',
-    description: 'Get stored clan war history from Ponyo.',
-    inputSchema: {
-      type: 'object',
-      properties: { limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Maximum history records; defaults to 10.' } },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'get_cwl_status',
-    description: 'Get current or most recent Clan War League season status from Ponyo.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
-  },
-  {
-    name: 'get_capital_raid_status',
-    description: 'Get the latest Clan Capital raid status or stored raid summary from Ponyo.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
-  }
+  { name: 'get_clan_members', description: 'Fetch the latest live roster of members in the configured Ponyo clan. Supports optional name search and result limit.', inputSchema: { type: 'object', properties: { search: { type: 'string', description: 'Optional substring of player name to search for.' }, limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum members to return; defaults to 100.' } }, additionalProperties: false } },
+  { name: 'get_clan_summary', description: 'Get the current configured clan overview and summary metrics from Ponyo.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_current_war', description: 'Get latest current clan war status from the live Clash of Clans API via Ponyo.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_clan_activity', description: 'Get observed member activity changes within a window. Results depend on stored snapshot coverage.', inputSchema: { type: 'object', properties: { hours: { type: 'integer', minimum: 1, maximum: 168, description: 'Lookback hours; defaults to 24.' } }, additionalProperties: false } },
+  { name: 'get_capital_contribution', description: 'Get a player lifetime Clan Capital contribution total. This is not raid-weekend loot.', inputSchema: { type: 'object', properties: { player: { type: 'string', minLength: 1, maxLength: 80, description: 'Player name or tag.' } }, required: ['player'], additionalProperties: false } },
+  { name: 'get_capital_contribution_activity', description: 'Compare stored lifetime contribution snapshots around the latest stored raid end. Coverage may be incomplete; this is not raid-weekend loot.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_war_history', description: 'Get stored regular Clan War history, excluding CWL rounds.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Maximum wars; defaults to 10.' } }, additionalProperties: false } },
+  { name: 'get_cwl_history', description: 'Get stored Clan War League history from Ponyo.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_capital_raid_history', description: 'Get stored Clan Capital raid history from Ponyo.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_latest_capital_raid', description: 'Get latest stored Clan Capital Raid Weekend information from Ponyo.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_sync_status', description: 'Check Ponyo data-sync health and latest sync status.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } }
 ];
 
 const routeByTool = {
-  get_clan_members: args => ponyoGet('/api/v1/clan/members', { search: args.search, limit: args.limit }),
+  get_clan_members: a => ponyoGet('/api/v1/clan/members', { search: a.search, limit: a.limit }),
   get_clan_summary: () => ponyoGet('/api/v1/clan/summary'),
   get_current_war: () => ponyoGet('/api/v1/war/current'),
-  get_clan_activity: args => ponyoGet('/api/v1/clan/activity', { hours: args.hours }),
-  get_capital_contribution: args => ponyoGet('/api/v1/clan/player-capital-contribution', { player: args.player }),
+  get_clan_activity: a => ponyoGet('/api/v1/clan/activity', { hours: a.hours }),
+  get_capital_contribution: a => ponyoGet('/api/v1/clan/player-capital-contribution', { player: a.player }),
   get_capital_contribution_activity: () => ponyoGet('/api/v1/clan/capital-contribution-activity'),
-  get_war_history: args => ponyoGet('/api/v1/war/history', { limit: args.limit }),
-  get_cwl_status: () => ponyoGet('/api/v1/cwl/current'),
-  get_capital_raid_status: () => ponyoGet('/api/v1/capital/current')
+  get_war_history: a => ponyoGet('/api/v1/war/history', { limit: a.limit }),
+  get_cwl_history: () => ponyoGet('/api/v1/cwl/history'),
+  get_capital_raid_history: () => ponyoGet('/api/v1/capital-raids/history'),
+  get_latest_capital_raid: () => ponyoGet('/api/v1/capital-raids/latest'),
+  get_sync_status: () => ponyoGet('/api/v1/sync/status')
 };
 
 function createMcpServer() {
-  const server = new Server(
-    { name: 'ponyo-clash-of-clans', version: '1.0.0' },
-    { capabilities: { tools: {} } }
-  );
+  const server = new Server({ name: 'ponyo-clash-of-clans', version: '1.0.0' }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
   server.setRequestHandler(CallToolRequestSchema, async request => {
-    const name = request.params.name;
-    const handler = routeByTool[name];
-    if (!handler) return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
+    const handler = routeByTool[request.params.name];
+    if (!handler) return { content: [{ type: 'text', text: 'Unknown tool.' }], isError: true };
     try {
       const result = await handler(request.params.arguments || {});
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
@@ -139,7 +82,6 @@ function createMcpServer() {
   return server;
 }
 
-// Stateless Streamable HTTP MCP: each POST is an independent request.
 app.post('/mcp', async (req, res) => {
   const server = createMcpServer();
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
@@ -152,8 +94,7 @@ app.post('/mcp', async (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: 'MCP request failed.' });
   }
 });
-
-app.get('/mcp', (_req, res) => res.status(405).json({ error: 'MCP requires POST; use this URL as the server endpoint in ChatGPT.' }));
-app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'This stateless MCP endpoint does not use sessions.' }));
+app.get('/mcp', (_req, res) => res.status(405).json({ error: 'Use this endpoint as MCP server URL; MCP requests use POST.' }));
+app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'Stateless MCP endpoint does not use sessions.' }));
 
 app.listen(PORT, '0.0.0.0', () => console.log(`[ponyo-mcp] listening on port ${PORT}`));
