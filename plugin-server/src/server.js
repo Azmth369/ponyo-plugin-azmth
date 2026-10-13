@@ -9,6 +9,38 @@ const API_KEY = process.env.PONYO_API_KEY || '';
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
+// Render runs behind a proxy; trust the first proxy hop for client IP rate limits.
+app.set('trust proxy', 1);
+
+// Public read-only endpoint: apply per-IP limits without requiring friends to share
+// a secret. This is a lightweight abuse guard, not a substitute for an API gateway.
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_REQUESTS = 60;
+const rateBuckets = new Map();
+app.use('/mcp', (req, res, next) => {
+  const now = Date.now();
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  let bucket = rateBuckets.get(ip);
+  if (!bucket || now - bucket.startedAt >= RATE_WINDOW_MS) {
+    bucket = { startedAt: now, count: 0 };
+    rateBuckets.set(ip, bucket);
+  }
+  bucket.count += 1;
+  // Opportunistically remove expired entries to keep memory bounded.
+  if (rateBuckets.size > 5000) {
+    for (const [key, value] of rateBuckets) {
+      if (now - value.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(key);
+    }
+  }
+  res.setHeader('RateLimit-Limit', String(RATE_MAX_REQUESTS));
+  res.setHeader('RateLimit-Remaining', String(Math.max(0, RATE_MAX_REQUESTS - bucket.count)));
+  if (bucket.count > RATE_MAX_REQUESTS) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - bucket.startedAt)) / 1000))));
+    return res.status(429).json({ error: 'Too many requests. Please wait a minute and try again.' });
+  }
+  next();
+});
+
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'ponyo-mcp-plugin', mcp: '/mcp' }));
 app.get('/health', (_req, res) => {
