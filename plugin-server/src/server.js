@@ -1,4 +1,5 @@
 import express from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -6,6 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 const PORT = Number(process.env.PORT || 8787);
 const API_BASE = (process.env.PONYO_API_BASE_URL || '').replace(/\/$/, '');
 const API_KEY = process.env.PONYO_API_KEY || '';
+const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN || '';
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -44,7 +46,7 @@ app.use('/mcp', (req, res, next) => {
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'ponyo-mcp-plugin', mcp: '/mcp' }));
 app.get('/health', (_req, res) => {
-  const configured = Boolean(API_BASE && API_KEY.length >= 32);
+  const configured = Boolean(API_BASE && API_KEY.length >= 32 && MCP_BEARER_TOKEN.length >= 32);
   res.status(configured ? 200 : 503).json({ ok: configured, service: 'ponyo-mcp-plugin' });
 });
 
@@ -113,6 +115,22 @@ function createMcpServer() {
   });
   return server;
 }
+
+app.use('/mcp', (req, res, next) => {
+  const supplied = req.get('authorization') || '';
+  const prefix = 'Bearer ';
+  if (!MCP_BEARER_TOKEN || !supplied.startsWith(prefix)) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    return res.status(401).json({ error: 'Bearer authentication required.' });
+  }
+  const candidate = Buffer.from(supplied.slice(prefix.length));
+  const expected = Buffer.from(MCP_BEARER_TOKEN);
+  if (candidate.length !== expected.length || !timingSafeEqual(candidate, expected)) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    return res.status(401).json({ error: 'Invalid bearer token.' });
+  }
+  next();
+});
 
 app.post('/mcp', async (req, res) => {
   const server = createMcpServer();
