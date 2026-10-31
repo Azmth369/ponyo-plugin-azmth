@@ -1,21 +1,57 @@
 # Ponyo MCP Plugin Server
 
-A separate, read-only MCP adapter for the existing Ponyo Clash of Clans API. It does not access Supabase directly and does not change the original API service.
+A separate, read-only MCP adapter for the existing Ponyo Clash of Clans API. It does not access Supabase directly and does not modify the original API service.
+
+## Existing deployment
+
+- Render service: `ponyo-plugin/azmth`
+- Service URL: `https://ponyo-plugin-azmth-tb6o.onrender.com`
+- MCP endpoint: `https://ponyo-plugin-azmth-tb6o.onrender.com/mcp`
+- Existing Ponyo API base URL: `https://ponyo-azmth.onrender.com`
+
+The Render service is already connected to this repository with root directory `plugin-server/`, Node runtime, and `npm start`. Do not create a duplicate service.
 
 ## Environment variables
 
-- `PONYO_API_BASE_URL`: base URL of the existing Ponyo API, e.g. `https://ponyo-v845.onrender.com`.
-- `PONYO_API_KEY`: API key already configured on the existing API. Add it only to the new Render service's environment; never commit it.
+Configure these only in the existing Render service environment:
+
+- `PONYO_API_BASE_URL=https://ponyo-azmth.onrender.com`
+- `PONYO_API_KEY`: the API key already configured on the existing Ponyo API service. Keep it server-side.
+- `MCP_BEARER_TOKEN`: a separate, randomly generated secret used by ChatGPT clients to authenticate to this MCP endpoint. Use at least 32 characters. Do not reuse the backend API key.
 - `PORT`: supplied automatically by Render.
 
-## Deploy separately
+This adapter does not need Supabase credentials, the Clash of Clans API token, or the Discord bot token.
 
-Create a new Render Web Service from this repository, with root directory `plugin-server`, runtime Node, and start command `npm start`. Set the two required environment variables in Render. This adapter does not need Supabase credentials or the Clash of Clans API token.
+## Authentication
 
-## MCP endpoint
+Every request to `/mcp` must include:
 
-The server exposes Streamable HTTP MCP at `/mcp`. Use the HTTPS service URL plus `/mcp` when adding a custom MCP server in ChatGPT.
+```http
+Authorization: Bearer <MCP_BEARER_TOKEN>
+```
 
-## Security
+The backend `PONYO_API_KEY` is sent only from this server to the Ponyo API. Never place either secret in GitHub, chat messages, client-side code, or screenshots.
 
-This server exposes read-only clan data tools only. It keeps the backend API key server-side. Do not disable authentication or expose keys in chat, GitHub, or client configuration.
+`GET /health` returns HTTP 200 only when the API base URL, backend API key, and MCP bearer token are configured. It does not reveal secret values.
+
+## Read-only MCP tools
+
+The server exposes these 11 tools:
+
+- `get_clan_members`
+- `get_clan_summary`
+- `get_current_war`
+- `get_clan_activity`
+- `get_capital_contribution`
+- `get_capital_contribution_activity`
+- `get_war_history`
+- `get_cwl_history`
+- `get_capital_raid_history`
+- `get_latest_capital_raid`
+- `get_sync_status`
+
+Tool names are snake_case as exposed by MCP. These tools perform GET requests to the existing Ponyo API; no refresh, write, or administrative actions are exposed.
+
+## Local development
+
+Use Node.js 22 or newer. From `plugin-server/` run `npm install` and `npm start` after configuring the required environment variables. Never use production secrets in a committed `.env` file.
